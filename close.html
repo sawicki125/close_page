@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Closing...</title>
+<script>
+    // Try multiple methods to maximize the chance of closing
+    window.onload = function() {
+        window.open('', '_self');
+        window.close();
+        setTimeout(function() {
+            // fallback: redirect to about:blank
+            window.location.href = "about:blank";
+        }, 100);
+    };
+</script>
+</head>
+<body>
+</body>
+</html>
