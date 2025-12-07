@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import subprocess
-import ssl
-from datetime import datetime
 
 # Paths
 SERVER_FILE = "server.py"
@@ -25,7 +23,7 @@ if not domains:
     print("No local domains found in hosts file.")
     exit(1)
 
-# Generate SAN config
+# Generate SAN config for OpenSSL
 san_config = f"""
 [req]
 distinguished_name = req_distinguished_name
@@ -58,48 +56,84 @@ subprocess.run([
     "-config", OPENSSL_CONFIG
 ], check=True)
 
-# Rewrite server.py
+# Remove old certificate (same CN)
+try:
+    subject = domains[0]
+    subprocess.run([
+        "certutil", "-delstore", "root", subject
+    ], check=False)
+    print(f"Old certificate for {subject} removed if it existed.")
+except Exception as e:
+    print("Could not remove old certificate:", e)
+
+# Import certificate into Trusted Root store
+try:
+    subprocess.run([
+        "certutil", "-addstore", "-f", "root", CERT_FILE
+    ], check=True)
+    print("Certificate imported into Trusted Root Certification Authorities.")
+except Exception as e:
+    print("Could not import certificate automatically:", e)
+
+
+# Rewrite server.py (logging-enabled version)
 server_code = f"""# -*- coding: utf-8 -*-
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import ssl
+import logging
 import os
+from urllib.parse import urlparse
+from datetime import datetime
 
 CERT_FILE = r"{CERT_FILE}"
 KEY_FILE = r"{KEY_FILE}"
-HTTPS_PORT = 443
+PORT = 443
+LOG_FILE = r"server.log"
+
+# Setup logging
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
 
 class MyHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/" or self.path == "/index.html":
-            self.path = "/close.html"
-        return super().do_GET()
+        self.path = "/close.html"
+        logging.info(f"{{self.client_address[0]}} requested {{self.path}}")
+        try:
+            super().do_GET()
+        except Exception as e:
+            logging.error(f"Error serving {{self.path}}: {{e}}")
 
-    def list_directory(self, path):
-        # Serve close.html instead of directory listing
-        close_path = os.path.join(os.getcwd(), "close.html")
-        if os.path.exists(close_path):
-            with open(close_path, "rb") as f:
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.send_header("Content-length", str(os.path.getsize(close_path)))
-                self.end_headers()
-                self.wfile.write(f.read())
-            return None
-        else:
-            return super().list_directory(path)
+    def log_message(self, format, *args):
+        logging.info("%s - %s" % (self.address_string(), format % args))
 
-server_address = ("0.0.0.0", HTTPS_PORT)
+# Ensure working directory is correct
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+server_address = ("0.0.0.0", PORT)
 httpd = HTTPServer(server_address, MyHandler)
 
+# Setup SSL
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
 httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
 
-print(f"HTTPS server running on port {{HTTPS_PORT}}")
-httpd.serve_forever()
+logging.info(f"HTTPS server starting on port {{PORT}}")
+
+try:
+    httpd.serve_forever()
+except Exception as e:
+    logging.error(f"Server stopped with error: {{e}}")
+finally:
+    httpd.server_close()
+    logging.info("Server stopped.")
 """
 
 with open(SERVER_FILE, "w", encoding="utf-8") as f:
     f.write(server_code)
 
 print(f"Updated {SERVER_FILE} and generated new certificate for domains: {', '.join(domains)}")
+# Optionally, start the server

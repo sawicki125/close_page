@@ -18,7 +18,7 @@ key.pem
 openssl_san.cnf
 
 # Log files
-*.log
+**.log
 
 # IDE/editor files
 .vscode/
