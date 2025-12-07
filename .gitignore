@@ -11,6 +11,7 @@ env/
 # Windows system files
 Thumbs.db
 Desktop.ini
+launcher.exe 
 
 # Certificates and keys
 cert.pem

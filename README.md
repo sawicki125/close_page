@@ -92,6 +92,12 @@ Edit `C:\Windows\System32\drivers\etc\hosts` and add your domains:
 Open PowerShell **as Administrator** and run:
 
 ```powershell
+Start-Process powershell -Verb runAs
+```
+
+Then navigate to the project directory and execute:
+
+```powershell
 cd C:\close_page
 python update.py
 ```
