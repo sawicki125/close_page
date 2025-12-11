@@ -5,9 +5,6 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit
 }
 
-# Kill all pythonw.exe processes
-Get-Process pythonw -ErrorAction SilentlyContinue | Stop-Process -Force
-
 # Navigate to folder
 Set-Location "C:/close_page"
 
